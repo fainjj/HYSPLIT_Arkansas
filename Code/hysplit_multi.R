@@ -1,7 +1,12 @@
 library(magrittr)
 library(tidyverse)
 library(splitr)
+library(lubridate)
+library(here)
 #
+
+# Examples ----
+# Simple model using location, start date, and start hour params onl
 # hdisp <- function(lon, lat, strd, strh){
 #   hysplit_dispersion(lat = lat, lon = lon, height = 1,
 #                      start_day = Date, start_hour = strh, duration = 1,
@@ -10,6 +15,7 @@ library(splitr)
 #                      species = list(pdiam = 0.25, density = 1.5, shape_factor = 0.8),
 #                      met_dir = NULL, clean_up = TRUE)}
 #
+# A poorly-scaled but simplified wrapper for multiple fire points
 # hdisp_wrap <- function(firepoints_list) {
 #   firepoints_list %>%
 #     mutate(Date = strptime(date)) %$%
@@ -29,6 +35,7 @@ library(splitr)
 # }
 
 
+# Distribution models ----
 hdist_apply <- function(firepoints_list) {
   firepoints_list %>%
     mutate(st_dt = as.Date(date, format = '%m/%d/%Y %H:%M', tz="US/Central")) %>%
@@ -59,6 +66,7 @@ hdist_apply <- function(firepoints_list) {
 
 hdist_apply(data.frame(lat=c(36), lon=c(-90), date=c("10/02/2020 00:00")))
 
+# Single Dispersion event model with all params
 hysplit_dispersion(lat = 35.7959486, lon = -90.0169288,
                    height = 1,
                    start_day = '2020-10-02',
@@ -79,6 +87,7 @@ hysplit_dispersion(lat = 35.7959486, lon = -90.0169288,
                    met_dir = NULL,
                    clean_up = TRUE)
 
+# Alternate method (piped)
 create_dispersion_model() %>%
   add_source(
     name = "particle",
@@ -96,7 +105,7 @@ create_dispersion_model() %>%
   run_model()
 
 
-
+# Dispersion run in an *apply-like style ---
 hdist_apply <- function(firepoints_list) {
   firepoints_list %>%
     mutate(st_rl = (mdy_hm(date, tz="US/Central") + hours(14)) %>% as.character(),
@@ -128,84 +137,27 @@ hdist_apply <- function(firepoints_list) {
                     run_model()
                 }
     )
-    #
-    # mutate(model = create_dispersion_model() %>%
-    #          add_source(
-    #            name = "particle",
-    #            lat = lat,
-    #            lon = lon,
-    #            height = 1,
-    #            rate = 500, pdiam = 0.25, density = 1, shape_factor = 1,
-    #            release_start = st_rl,
-    #            release_end = ed_rl
-    #          ) %>%
-    #          add_dispersion_params(
-    #            start_time = st_tm,
-    #            end_time = ed_tm,
-    #            direction = "forward",
-    #            met_type = "reanalysis"
-    #          ) %>%
-    #          run_model() %>%
-    #          list())
+  }
 
-    # {.mapply(data.frame, ., NULL)} %>%
-    # map(
-    #   function(x){
-    #             create_dispersion_model() %>%
-    #               add_source(
-    #                 name = "particle",
-    #                 lat = as.numeric(x['lat']),
-    #                 lon = as.numeric(x['lon']),
-    #                 height = 1,
-    #                 rate = 500, pdiam = 0.25, density = 1, shape_factor = 1,
-    #                 release_start = x['st_rl'],
-    #                 release_end = x['ed_rl']
-    #               ) %>%
-    #               add_dispersion_params(
-    #                 start_time = x['st_tm'],
-    #                 end_time = x['ed_tm'],
-    #                 direction = "forward",
-    #                 met_type = "reanalysis"
-    #               ) %>%
-    #               run_model()
-    #           }
-    # )
-
-
-}
-
-hdist_apply(firepoints[1:10, ])
-
-hdist_apply(data.frame(lat = 35.7959486, lon = -90.0169288, date=c("10/02/2020 00:00")))
-
-firepoints %>%
-  mutate(st_dt = as.character(lubridate::mdy_hm(date, tz="US/Central") + hours(12)),
-         ed_dt = as.character(lubridate::mdy_hm(date, tz="US/Central") + hours(13))
-  )
-
-
-
-
-
-
-# apply(1,
-#       function(x){
-#         create_dispersion_model() %>%
-#           add_source(
-#             name = "particle",
-#             lat = as.numeric(x['lat']),
-#             lon = as.numeric(x['lon']),
-#             height = 1,
-#             rate = 500, pdiam = 0.25, density = 1, shape_factor = 1,
-#             release_start = x['st_rl'],
-#             release_end = x['ed_rl']
-#           ) %>%
-#           add_dispersion_params(
-#             start_time = x['st_tm'],
-#             end_time = x['ed_tm'],
-#             direction = "forward",
-#             met_type = "reanalysis"
-#           ) %>%
-#           run_model()
-#       }
-# )
+# Example (exploded) apply implementation for multiple runs
+apply(firepoints[1:10,], 1,
+      function(x){
+        create_dispersion_model() %>%
+          add_source(
+            name = "particle",
+            lat = as.numeric(x['lat']),
+            lon = as.numeric(x['lon']),
+            height = 1,
+            rate = 500, pdiam = 0.25, density = 1, shape_factor = 1,
+            release_start = x['st_rl'],
+            release_end = x['ed_rl']
+          ) %>%
+          add_dispersion_params(
+            start_time = x['st_tm'],
+            end_time = x['ed_tm'],
+            direction = "forward",
+            met_type = "reanalysis"
+          ) %>%
+          run_model()
+      }
+)
